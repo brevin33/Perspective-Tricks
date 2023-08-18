@@ -6,6 +6,8 @@ using UnityEngine;
 public class SplatAble : MonoBehaviour
 {
 
+    // this is unfinished
+
     MeshFilter meshFilter;
     Mesh mesh;
     Vector3[] verts;

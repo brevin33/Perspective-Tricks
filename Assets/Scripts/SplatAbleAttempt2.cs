@@ -4,6 +4,8 @@ using UnityEngine;
 public class SplatAbleAttempt2 : MonoBehaviour
 {
 
+    // this is unfinished
+
     MeshFilter meshFilter;
     Mesh mesh;
     Vector3[] verts;
@@ -62,7 +64,6 @@ public class SplatAbleAttempt2 : MonoBehaviour
             for (int j = 0; j < triangle.Count; j++)
             {
                 int vertIndex = triangle[i];
-                getNewVertsFromHitMesh(hitGameObjects[vertIndex], triangle[0], triangle[1], triangle[2], newVertsLastAddedIndex);
             }
 
         }
@@ -147,7 +148,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
@@ -158,7 +159,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
@@ -169,7 +170,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
@@ -189,7 +190,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected2]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
@@ -200,7 +201,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected2]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
@@ -211,7 +212,7 @@ public class SplatAbleAttempt2 : MonoBehaviour
                     if (dist <= Vector3.Distance(otherVerts[otherTriangle[otherTriangleIndexConnected2]], otherVerts[otherTriangle[otherTriangleIndex]]))
                     {
                         addedVerts = true;
-                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[0]] + (dir * dist);
+                        newVerts[lastAddedNewTriangleIndex] = otherVerts[otherTriangle[otherTriangleIndex]] + (dir * dist);
                         vertIndexToAddToTriangles.Add(lastAddedNewVertIndex);
                         lastAddedNewVertIndex++;
                     }
