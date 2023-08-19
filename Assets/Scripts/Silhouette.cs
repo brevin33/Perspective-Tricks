@@ -7,29 +7,20 @@ using static UnityEngine.GraphicsBuffer;
 public class Silhouette
 {
 
-    string name;
+    string n;
     Vector3 viewPos;
     public Silhouette(string Name, Vector3 ViewPos)
     {
-        name = Name;
+        n = Name;
         viewPos = ViewPos;
     }
 
     public bool pointBehind(Vector3 point)
     {
         RaycastHit hit;
-        if (Physics.Raycast(viewPos, point - viewPos,out hit))
+        if (Physics.Raycast(point, viewPos - point, out hit))
         {
-            return hit.transform.gameObject.name == name;
-        }
-        return false;
-    }
-
-    public bool pointBehind(Vector3 point, out RaycastHit hit)
-    {
-        if (Physics.Raycast(viewPos, point - viewPos, out hit))
-        {
-            return hit.transform.gameObject.name == name;
+            return hit.transform.gameObject.name == n;
         }
         return false;
     }
@@ -55,6 +46,16 @@ public class Silhouette
         return point;
     }
 
+    public void setVertInfoUVs(ref VertInfo vertInfo)
+    {
+        RaycastHit hit;
+        if (Physics.Raycast(viewPos, vertInfo.pos - viewPos, out hit))
+        {
+            vertInfo.uv = hit.textureCoord;
+            vertInfo.uv2 = hit.textureCoord2;
+        }
+    }
+
     public VertInfo findVertInfoInSilhouetteAlongEdge(VertInfo inSilhouette, VertInfo outSilhouette, int accuracy)
     {
         float inBetween = 0.5f;
@@ -62,11 +63,13 @@ public class Silhouette
         Vector3 inSilhouettePoint = inSilhouette.pos;
         Vector3 outSilhouettePoint = outSilhouette.pos;
         Vector3 point = Vector3.Lerp(inSilhouettePoint, outSilhouettePoint, inBetween);
+        Vector3 outPoint = point;
         for (int i = 0; i < accuracy; i++)
         {
             if (pointBehind(point))
             {
                 inBetween += change;
+                outPoint = point;
             }
             else
             {
@@ -78,10 +81,8 @@ public class Silhouette
 
         return new VertInfo
         {
-            pos = point,
+            pos = outPoint,
             normal = Vector3.Lerp(inSilhouette.normal, outSilhouette.normal, inBetween),
-            uv = Vector2.Lerp(inSilhouette.uv, outSilhouette.uv, inBetween),
-            uv2 = Vector2.Lerp(inSilhouette.uv2, outSilhouette.uv2, inBetween),
             tangent = Vector4.Lerp(inSilhouette.tangent, outSilhouette.tangent, inBetween)
         };
     }
