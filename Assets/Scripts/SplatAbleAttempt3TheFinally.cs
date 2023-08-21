@@ -42,21 +42,20 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
     {
         Silhouette silhouette = new Silhouette(gameObject.name, camPos);
         MeshFilter[] meshsInView = allMeshes;
-        Debug.Log("mesh in view: " + meshsInView.Length.ToString());
-        vertInfos = new VertInfo[mesh.vertices.Length * 100];
+        vertInfos = new VertInfo[mesh.vertices.Length * 1000];
         vertCount = 0;
         triangleCount = 0;
-        newNormals = new Vector3[mesh.normals.Length * 100];
-        newTrianlges = new int[mesh.triangles.Length * 100];
-        newVerticies = new Vector3[mesh.vertices.Length * 100];
-        newTangents = new Vector4[mesh.vertices.Length * 100];
-        newUVs = new Vector2[mesh.uv.Length * 100];
-        newUVs2 = new Vector2[mesh.uv2.Length * 100];
-        generateNewSplatedMesh(silhouette, meshsInView);
+        newNormals = new Vector3[mesh.normals.Length * 1000];
+        newTrianlges = new int[mesh.triangles.Length * 1000];
+        newVerticies = new Vector3[mesh.vertices.Length * 1000];
+        newTangents = new Vector4[mesh.vertices.Length * 1000];
+        newUVs = new Vector2[mesh.uv.Length * 1000];
+        newUVs2 = new Vector2[mesh.uv2.Length * 1000];
+        generateNewSplatedMesh(ref silhouette, ref meshsInView);
 
     }
 
-    void generateNewSplatedMesh(Silhouette silhouette, MeshFilter[] meshsInView)
+    void generateNewSplatedMesh(ref Silhouette silhouette, ref MeshFilter[] meshsInView)
     {
         for (int i = 0; i < meshsInView.Length; i++)
         {
@@ -73,11 +72,9 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
                     tangent = otherMesh.tangents[j],
                 };
             }
-            bool[] vertsBehind = vertsBehindSilhouette(otherVerts, silhouette);
-            generateAndAddedNewVertsOnEdges(otherVerts, otherMesh.triangles, vertsBehind, silhouette);
+            bool[] vertsBehind = vertsBehindSilhouette(ref otherVerts, ref silhouette);
+            generateAndAddedNewVertsOnEdges(ref otherVerts, otherMesh.triangles, ref vertsBehind, ref silhouette);
         }
-        Debug.Log("number of verts: " + vertCount);    
-        Debug.Log("number of triangles" + triangleCount);
         cutOffAt(ref newVerticies,vertCount);
         cutOffAt(ref newUVs, vertCount);
         cutOffAt(ref newUVs2, vertCount);
@@ -92,20 +89,12 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
         mesh.SetTangents( newTangents);
         mesh.triangles = newTrianlges;
         GetComponent<MeshFilter>().mesh = mesh;
-        done = true;
+        GetComponent<MeshCollider>().sharedMesh = mesh; 
     }
 
-    bool done = false;
-    private void Update()
+    void generateAndAddedNewVertsOnEdges(ref VertInfo[] otherVerts, int[] otherTriangles, ref bool[] behind, ref Silhouette silhouette)
     {
-        if (done)
-        {
-            int abc = 123;
-        }
-    }
-    void generateAndAddedNewVertsOnEdges(VertInfo[] otherVerts, int[] otherTriangles, bool[] behind, Silhouette silhouette)
-    {
-        for (int i = 0; i < otherTriangles.Length -  3; i += 3)
+        for (int i = 0; i < otherTriangles.Length; i += 3)
         {
             List<VertInfo> toAdd = new List<VertInfo>();
             bool oneIn = false;
@@ -147,17 +136,51 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
                     VertInfo silhouetteEdgeVert = silhouette.findVertInfoInSilhouetteAlongEdge(otherVerts[v1], otherVerts[v2], accuracy);
                     toAdd.Add(silhouetteEdgeVert);
                 }
-                else // behind[otherTriangles[v2]]
+                else // behind[v2]
                 {
                     VertInfo silhouetteEdgeVert = silhouette.findVertInfoInSilhouetteAlongEdge(otherVerts[v2], otherVerts[v1], accuracy);
                     toAdd.Add(silhouetteEdgeVert);
                 }
             }
 
+            Plane edge1 = new Plane(otherVerts[otherTriangles[i]].pos, otherVerts[otherTriangles[i + 1]].pos, camPos);
+            Plane edge2 = new Plane(otherVerts[otherTriangles[i]].pos, otherVerts[otherTriangles[i + 2]].pos, camPos);
+            Plane edge3 = new Plane(otherVerts[otherTriangles[i + 2]].pos, otherVerts[otherTriangles[i + 1]].pos, camPos);
+            Vector3 pointInPlane = (otherVerts[otherTriangles[i]].pos + otherVerts[otherTriangles[i + 1]].pos + otherVerts[otherTriangles[i + 2]].pos)/3;
+            VertInfo[] vertsInTrianlge = getVertsInTriangle(edge1,edge2,edge3,pointInPlane);
+
+            for (int j = 0; j < vertsInTrianlge.Length; j++)
+            {
+                //toAdd.Add(vertsInTrianlge[j]); ---------------------------------------------------------------------------------------------------------------------------------
+            }
+
             addVerts(ref toAdd, ref silhouette);
         }
     }
 
+
+
+
+    VertInfo[] getVertsInTriangle(Plane edge1, Plane edge2, Plane edge3, Vector3 pointInPlane)
+    {
+        VertInfo[] vertsInTrianlges = new VertInfo[mesh.vertices.Length];
+        int numberOfVertsInTriangle = 0;
+        for (int i = 0; i < mesh.vertices.Length; i++) {
+            Vector3 vert = mesh.vertices[i];
+            if(edge1.SameSide(vert, pointInPlane) && edge2.SameSide(vert, pointInPlane) && edge3.SameSide(vert, pointInPlane))
+            {
+                vertsInTrianlges[numberOfVertsInTriangle++] = new VertInfo {
+                    pos = vert,
+                    normal = mesh.normals[i],
+                    tangent = mesh.tangents[i],
+                    uv = mesh.uv[i],
+                    uv2 = mesh.uv2[i]
+                };
+            }
+        }
+        cutOffAt(ref vertsInTrianlges,numberOfVertsInTriangle);
+        return vertsInTrianlges;
+    }
 
     void addVerts(ref List<VertInfo> toAdd, ref Silhouette silhouette)
     {
@@ -188,13 +211,13 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
 
             newTrianlges[triangleCount] = vertCount - 4;
             newTrianlges[triangleCount + 1] = vertCount - 2;
-            newTrianlges[triangleCount + 2] = vertCount - 3;
+            newTrianlges[triangleCount + 2] = vertCount - 1;
             triangleCount += 3;
         }
     }
 
 
-    bool[] vertsBehindSilhouette(VertInfo[] verts, Silhouette silhouette)
+    bool[] vertsBehindSilhouette(ref VertInfo[] verts, ref Silhouette silhouette)
     {
         bool[] behind = new bool[verts.Length];
         Array.Fill(behind, false);
