@@ -660,7 +660,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bd99480fc211bd419502938736e7765, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  accuracy: 99
+  accuracy: 7
   splatOnto:
     serializedVersion: 2
     m_Bits: 39

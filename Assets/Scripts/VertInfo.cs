@@ -22,3 +22,9 @@ public struct edge {
     public int vert1;
     public int vert2;
 }
+
+public struct triangleIndex
+{
+    public int index;
+    public string gameObject;
+}
