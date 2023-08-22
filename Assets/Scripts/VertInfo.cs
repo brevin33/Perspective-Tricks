@@ -10,3 +10,15 @@ public struct VertInfo
     public Vector2 uv2;
     public Vector4 tangent;
 }
+
+
+public struct posAndIndex
+{
+    public Vector3 pos;
+    public int index;
+}
+
+public struct edge { 
+    public int vert1;
+    public int vert2;
+}

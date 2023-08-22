@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+// got verts on silouet just make them part of the edge triangles
+
 public class SplatAbleAttempt3TheFinally : MonoBehaviour
 {
     [SerializeField]
@@ -29,6 +31,11 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
     Vector2[] newUVs2;
     Vector4[] newTangents;
 
+
+    [SerializeField]
+    LayerMask splatOnto;
+
+
     private void Awake()
     {
 
@@ -40,6 +47,7 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
 
     private void OnMouseDown()
     {
+        camPos = cam.transform.position;
         Silhouette silhouette = new Silhouette(gameObject.name, camPos);
         MeshFilter[] meshsInView = allMeshes;
         vertInfos = new VertInfo[mesh.vertices.Length * 1000];
@@ -53,6 +61,20 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
         newUVs2 = new Vector2[mesh.uv2.Length * 1000];
         generateNewSplatedMesh(ref silhouette, ref meshsInView);
 
+    }
+
+
+
+    public Vector3 transformVertToWall(Vector3 worldPos, Vector3 localPos)
+    {
+        RaycastHit hit;
+        if (Physics.Raycast(cam.transform.position, worldPos - cam.transform.position, out hit, 99, splatOnto))
+        {
+            Vector3 newPos = transform.InverseTransformPoint(hit.point);
+            newPos = Vector3.Lerp(localPos, newPos, .999f);
+            return transform.TransformPoint(newPos);
+        }
+        return Vector3.negativeInfinity;
     }
 
     void generateNewSplatedMesh(ref Silhouette silhouette, ref MeshFilter[] meshsInView)
@@ -75,21 +97,21 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
             bool[] vertsBehind = vertsBehindSilhouette(ref otherVerts, ref silhouette);
             generateAndAddedNewVertsOnEdges(ref otherVerts, otherMesh.triangles, ref vertsBehind, ref silhouette);
         }
-        cutOffAt(ref newVerticies,vertCount);
+        cutOffAt(ref newVerticies, vertCount);
         cutOffAt(ref newUVs, vertCount);
         cutOffAt(ref newUVs2, vertCount);
         cutOffAt(ref newNormals, vertCount);
         cutOffAt(ref newTangents, vertCount);
         cutOffAt(ref newTrianlges, triangleCount);
-        mesh.triangles = new int[3] { 0,0,0};
+        mesh.triangles = new int[3] { 0, 0, 0 };
         mesh.SetVertices(newVerticies);
-        mesh.SetUVs(0,newUVs);
+        mesh.SetUVs(0, newUVs);
         mesh.SetUVs(1, newUVs2);
-        mesh.SetNormals( newNormals);
-        mesh.SetTangents( newTangents);
+        mesh.SetNormals(newNormals);
+        mesh.SetTangents(newTangents);
         mesh.triangles = newTrianlges;
         GetComponent<MeshFilter>().mesh = mesh;
-        GetComponent<MeshCollider>().sharedMesh = mesh; 
+        GetComponent<MeshCollider>().sharedMesh = mesh;
     }
 
     void generateAndAddedNewVertsOnEdges(ref VertInfo[] otherVerts, int[] otherTriangles, ref bool[] behind, ref Silhouette silhouette)
@@ -117,7 +139,7 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
             {
                 continue;
             }
-            int[,] otherEdges = new int[3,2] { { i, i + 1 }, { i, i + 2 }, { i + 1, i + 2 } };
+            int[,] otherEdges = new int[3, 2] { { i, i + 1 }, { i, i + 2 }, { i + 1, i + 2 } };
             for (int j = 0; j < 3; j++)
             {
                 int v1 = otherTriangles[otherEdges[j, 0]];
@@ -146,15 +168,20 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
             Plane edge1 = new Plane(otherVerts[otherTriangles[i]].pos, otherVerts[otherTriangles[i + 1]].pos, camPos);
             Plane edge2 = new Plane(otherVerts[otherTriangles[i]].pos, otherVerts[otherTriangles[i + 2]].pos, camPos);
             Plane edge3 = new Plane(otherVerts[otherTriangles[i + 2]].pos, otherVerts[otherTriangles[i + 1]].pos, camPos);
-            Vector3 pointInPlane = (otherVerts[otherTriangles[i]].pos + otherVerts[otherTriangles[i + 1]].pos + otherVerts[otherTriangles[i + 2]].pos)/3;
-            VertInfo[] vertsInTrianlge = getVertsInTriangle(edge1,edge2,edge3,pointInPlane);
+            Vector3 pointInPlane = (otherVerts[otherTriangles[i]].pos + otherVerts[otherTriangles[i + 1]].pos + otherVerts[otherTriangles[i + 2]].pos) / 3;
+            VertInfo[] vertsInTrianlge = getVertsInTriangle(edge1, edge2, edge3, pointInPlane);
+            bool isEdge = true;
+            if (toAdd.Count > 3)
+            {
+                isEdge = false;
+            }
 
             for (int j = 0; j < vertsInTrianlge.Length; j++)
             {
-                //toAdd.Add(vertsInTrianlge[j]); ---------------------------------------------------------------------------------------------------------------------------------
+                toAdd.Add(vertsInTrianlge[j]);
             }
 
-            addVerts(ref toAdd, ref silhouette);
+            addVerts(ref toAdd, ref silhouette, isEdge);
         }
     }
 
@@ -165,11 +192,13 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
     {
         VertInfo[] vertsInTrianlges = new VertInfo[mesh.vertices.Length];
         int numberOfVertsInTriangle = 0;
-        for (int i = 0; i < mesh.vertices.Length; i++) {
-            Vector3 vert = mesh.vertices[i];
-            if(edge1.SameSide(vert, pointInPlane) && edge2.SameSide(vert, pointInPlane) && edge3.SameSide(vert, pointInPlane))
+        for (int i = 0; i < mesh.vertices.Length; i++)
+        {
+            Vector3 vert = transformVertToWall(transform.TransformPoint(mesh.vertices[i]), mesh.vertices[i]);
+            if (edge1.SameSide(vert, pointInPlane) && edge2.SameSide(vert, pointInPlane) && edge3.SameSide(vert, pointInPlane))
             {
-                vertsInTrianlges[numberOfVertsInTriangle++] = new VertInfo {
+                vertsInTrianlges[numberOfVertsInTriangle++] = new VertInfo
+                {
                     pos = vert,
                     normal = mesh.normals[i],
                     tangent = mesh.tangents[i],
@@ -178,12 +207,14 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
                 };
             }
         }
-        cutOffAt(ref vertsInTrianlges,numberOfVertsInTriangle);
+        cutOffAt(ref vertsInTrianlges, numberOfVertsInTriangle);
         return vertsInTrianlges;
     }
 
-    void addVerts(ref List<VertInfo> toAdd, ref Silhouette silhouette)
+    void addVerts(ref List<VertInfo> toAdd, ref Silhouette silhouette, bool edge)
     {
+        int toAddSize = toAdd.Count;
+
         for (int i = 0; i < toAdd.Count; i++)
         {
             VertInfo vertInfo = toAdd[i];
@@ -195,25 +226,166 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
             newUVs2[vertCount] = vertInfo.uv2;
             vertCount++;
         }
-        if (toAdd.Count == 3)
+
+        // no verts in triangle
+        if (toAdd.Count == 3 || (toAdd.Count == 4 && edge))
         {
-            newTrianlges[triangleCount] = vertCount - 3;
-            newTrianlges[triangleCount + 1] = vertCount - 2;
-            newTrianlges[triangleCount + 2] = vertCount - 1;
-            triangleCount += 3;
+            if (toAdd.Count == 3)
+            {
+                newTrianlges[triangleCount] = vertCount - 3;
+                newTrianlges[triangleCount + 1] = vertCount - 2;
+                newTrianlges[triangleCount + 2] = vertCount - 1;
+                triangleCount += 3;
+            }
+            else
+            {
+                newTrianlges[triangleCount] = vertCount - 4;
+                newTrianlges[triangleCount + 1] = vertCount - 1;
+                newTrianlges[triangleCount + 2] = vertCount - 3;
+                triangleCount += 3;
+
+                newTrianlges[triangleCount] = vertCount - 4;
+                newTrianlges[triangleCount + 1] = vertCount - 2;
+                newTrianlges[triangleCount + 2] = vertCount - 1;
+                triangleCount += 3;
+            }
+            return;
         }
-        else
+
+        edge[] edgesToComplete = new edge[toAddSize * toAddSize];
+        List<int> unusedVerts;
+        int edgesToCompleteSize = 0;
+
+        //set up bounding area
+
+
+        if (edge)
         {
-            newTrianlges[triangleCount] = vertCount - 4;
-            newTrianlges[triangleCount + 1] = vertCount - 1;
-            newTrianlges[triangleCount + 2] = vertCount - 3;
+            unusedVerts = new List<int>(toAddSize - 3);
+            edge[] minBoundingBox = new edge[4];
+            minBoundingBox[0] = new edge { vert1 = vertCount - toAddSize, vert2 = vertCount - toAddSize + 1 };
+            minBoundingBox[1] = new edge { vert1 = vertCount - toAddSize + 3, vert2 = vertCount - toAddSize + 1 };
+            minBoundingBox[2] = new edge { vert1 = vertCount - toAddSize, vert2 = vertCount - toAddSize + 2 };
+            minBoundingBox[3] = new edge { vert1 = vertCount - toAddSize + 2, vert2 = vertCount - toAddSize + 3 };
+            Vector3 pointInMinBoundingPlane = (newVerticies[vertCount - toAddSize] + newVerticies[vertCount - toAddSize + 1] + newVerticies[vertCount - toAddSize + 2] + newVerticies[vertCount - toAddSize + 3]) * .25f;
+            Plane[] minBoundingPlanes = new Plane[4];
+            for (int i = 0; i < minBoundingBox.Length; i++)
+            {
+                edge e = minBoundingBox[i];
+                minBoundingPlanes[i] = new Plane(newVerticies[e.vert1], newVerticies[e.vert2], camPos);
+            }
+            int[] vertsMakingBoundingPlane = new int[toAddSize];
+            int vertsMakingBoundingPlaneSize = 0;
+            unusedVerts = new List<int>();
+            for (int i = 4; i < toAddSize; i++)
+            {
+                int vertIndex = vertCount - toAddSize + i;
+                Vector3 vert = newVerticies[vertIndex];
+                if (!pointInPlanes(minBoundingPlanes, vert, pointInMinBoundingPlane))
+                {
+                    vertsMakingBoundingPlane[vertsMakingBoundingPlaneSize] = vertIndex;
+                    vertsMakingBoundingPlaneSize++;
+                }
+                else
+                {
+                    unusedVerts.Add(i);
+                }
+            }
+            if (unusedVerts.Count == 0)
+            {
+                if (Physics.Raycast(camPos, pointInMinBoundingPlane - camPos, out RaycastHit hit))
+                {
+                    newVerticies[vertCount] = transform.InverseTransformPoint( pointInMinBoundingPlane);
+                    newNormals[vertCount] = hit.normal;
+                    newTangents[vertCount] = Vector4.Lerp(toAdd[0].tangent, toAdd[1].tangent , .5f);
+                    newUVs[vertCount] = hit.textureCoord;
+                    newUVs2[vertCount] = hit.textureCoord2;
+                    vertCount++;
+                }
+                unusedVerts.Add(toAddSize + 1);
+            }
+            cutOffAt(ref vertsMakingBoundingPlane, vertsMakingBoundingPlaneSize);
+
+            edgesToComplete[edgesToCompleteSize++] = minBoundingBox[0];
+            edgesToComplete[edgesToCompleteSize++] = minBoundingBox[1];
+            edgesToComplete[edgesToCompleteSize++] = minBoundingBox[2];
+
+            int currentVertIndex = vertCount - toAddSize + 2;
+            int endVert = vertCount - toAddSize + 3;
+            Vector3 startVert = newVerticies[currentVertIndex];
+            Comparison<int> closestToStartVert = (x, y) => Vector3.Distance(newVerticies[vertCount - toAddSize + x], startVert) == Vector3.Distance(newVerticies[vertCount - toAddSize + y], startVert) ? 0 : Vector3.Distance(newVerticies[vertCount - toAddSize + x], startVert) > Vector3.Distance(newVerticies[vertCount - toAddSize + y], startVert) ? 1 : -1;
+            Array.Sort(vertsMakingBoundingPlane, closestToStartVert);
+            for (int i = 0; i < vertsMakingBoundingPlaneSize; i++)
+            {
+                edgesToComplete[edgesToCompleteSize++] = new edge { vert1 = currentVertIndex, vert2 = vertsMakingBoundingPlane[i] };
+                currentVertIndex = vertsMakingBoundingPlane[i];
+            }
+            edgesToComplete[edgesToCompleteSize++] = new edge { vert1 = currentVertIndex, vert2 = endVert };
+        }
+        else // is not edge
+        {
+            edgesToComplete[0] = new edge { vert1 = vertCount - toAddSize, vert2 = vertCount - toAddSize + 1 };
+            edgesToComplete[1] = new edge { vert1 = vertCount - toAddSize, vert2 = vertCount - toAddSize + 2 };
+            edgesToComplete[2] = new edge { vert1 = vertCount - toAddSize + 2, vert2 = vertCount - toAddSize + 1 };
+            edgesToCompleteSize = 3;
+            unusedVerts = new List<int>();
+            for (int i = 3; i < toAddSize; i++)
+            {
+                unusedVerts.Add(i);
+            }
+        }
+        int edgesToCompleteIndex = 0;
+
+        //  fill bounding area using all verts
+        while (unusedVerts.Count > 1)
+        {
+            edge toComplete = edgesToComplete[edgesToCompleteIndex++];
+            Plane p = new Plane(newVerticies[toComplete.vert1], newVerticies[toComplete.vert2], camPos);
+
+            int unusedVertIndex = -1;
+            float lowestDistance = 999;
+            for (int i = 0; i < unusedVerts.Count; i++)
+            {
+                float distance = p.GetDistanceToPoint(newVerticies[vertCount - toAddSize + unusedVerts[i]]);
+                if (distance < lowestDistance)
+                {
+                    lowestDistance = distance;
+                    unusedVertIndex = i;
+                }
+            }
+            unusedVerts.RemoveAt(unusedVertIndex);
+
+            int vertToAdd = vertCount - toAddSize + unusedVertIndex;
+
+            newTrianlges[triangleCount] = vertToAdd;
+            newTrianlges[triangleCount + 1] = toComplete.vert1;
+            newTrianlges[triangleCount + 2] = toComplete.vert2;
             triangleCount += 3;
 
-            newTrianlges[triangleCount] = vertCount - 4;
-            newTrianlges[triangleCount + 1] = vertCount - 2;
-            newTrianlges[triangleCount + 2] = vertCount - 1;
+            edgesToComplete[edgesToCompleteSize++] = new edge { vert1 = toComplete.vert1, vert2 = vertToAdd };
+            edgesToComplete[edgesToCompleteSize++] = new edge { vert1 = toComplete.vert2, vert2 = vertToAdd };
+        }
+        Debug.Log(unusedVerts.Count);
+        int finalVertex = vertCount - toAddSize + unusedVerts[0];
+        while (edgesToCompleteIndex < edgesToCompleteSize)
+        {
+            edge toComplete = edgesToComplete[edgesToCompleteIndex++];
+            newTrianlges[triangleCount] = finalVertex;
+            newTrianlges[triangleCount + 1] = toComplete.vert1;
+            newTrianlges[triangleCount + 2] = toComplete.vert2;
             triangleCount += 3;
         }
+
+    }
+
+    bool pointInPlanes(Plane[] planes, Vector3 point, Vector3 pointInPlane)
+    {
+        bool inPlane = true;
+        for (int i = 0; i < planes.Length; i++)
+        {
+            inPlane = planes[i].SameSide(point, pointInPlane) ? inPlane : false;
+        }
+        return inPlane;
     }
 
 
@@ -289,7 +461,7 @@ public class SplatAbleAttempt3TheFinally : MonoBehaviour
 
     void cutOffAt<T>(ref T[] list, int size)
     {
-        T[] l =  new T[size];
+        T[] l = new T[size];
         for (int i = 0; i < size; i++)
         {
             l[i] = list[i];

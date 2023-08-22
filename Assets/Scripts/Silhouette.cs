@@ -6,7 +6,7 @@ public class Silhouette
 
     string n;
     Vector3 viewPos;
-    int[,] silouetEdges;
+    public int[,] silouetEdges;
     int[,,] edgeToTrianlge;
     public Silhouette(string Name, Vector3 ViewPos)
     {
@@ -14,8 +14,9 @@ public class Silhouette
         viewPos = ViewPos;
     }
 
-    void setSilouetEdges(Mesh mesh)
+    public void setSilouetEdges(Mesh mesh)
     {
+        makeEdgeToTrianlge(mesh);
         Vector3[] verts = mesh.vertices;
         int[] trianlges = mesh.triangles;
         silouetEdges = new int[trianlges.Length, 2];
@@ -23,6 +24,7 @@ public class Silhouette
         for (int i = 0; i < trianlges.Length; i += 3)
         {
             int[,] edges = new int[,] { { trianlges[i], trianlges[i + 1] }, { trianlges[i], trianlges[i + 1] }, { trianlges[i + 1], trianlges[i + 2] } };
+            int[,] edgesIndex = new int[,] { { i, i + 1 }, { i, i + 1 }, { i + 1, i + 2 } };
             for (int j = 0; j < edges.Length; j++)
             {
                 int trianlge1Start = edgeToTrianlge[edges[j, 0], edges[j, 1], 0];
@@ -37,8 +39,8 @@ public class Silhouette
                 {
                     continue;
                 }
-                silouetEdges[silouetEdgeIndex, 0] = edges[j, 0];
-                silouetEdges[silouetEdgeIndex, 1] = edges[j, 1];
+                silouetEdges[silouetEdgeIndex, 0] = edgesIndex[j, 0];
+                silouetEdges[silouetEdgeIndex, 1] = edgesIndex[j, 1];
                 silouetEdgeIndex++;
             }
         }
