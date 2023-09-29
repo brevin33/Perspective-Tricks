@@ -1,240 +1,278 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
-using Unity.Burst.CompilerServices;
+using System.Linq;
 using UnityEngine;
 
 public class SplatAble : MonoBehaviour
 {
-
-    // this is unfinished
-
-    MeshFilter meshFilter;
-    Mesh mesh;
-    Vector3[] verts;
-    int[] triangles;
-
     [SerializeField]
+    int accuracy;
+
+    Mesh mesh;
+
     Camera cam;
 
-    [SerializeField]
-    LayerMask splatOnto;
+    Vector3 camPos;
+
+    MeshFilter[] allMeshes;
+
+    VertInfo[] vertInfos;
+
+    int vertCount;
+
+    int triangleCount;
+
+    Vector3[] newNormals;
+    Vector3[] newVerticies;
+    int[] newTrianlges;
+    Vector2[] newUVs;
+    Vector2[] newUVs2;
+    Vector4[] newTangents;
 
     private void Awake()
     {
-        meshFilter = GetComponent<MeshFilter>();
-        mesh = meshFilter.mesh;
-        verts = mesh.vertices;
-        triangles = mesh.triangles;
-        string[] vertHits = new string[verts.Length];
+
+        mesh = GetComponent<MeshFilter>().mesh;
+        cam = Camera.main;
+        camPos = cam.transform.position;
+        allMeshes = FindObjectsOfType<MeshFilter>();
     }
+
     private void OnMouseDown()
     {
-        Vector3[] newVerts = new Vector3[verts.Length * 50];
-        int[] newTriangles = new int[triangles.Length * 50];
+        Silhouette silhouette = new Silhouette(gameObject.name, camPos);
+        MeshFilter[] meshsInView = allMeshes;
+        Debug.Log("mesh in view: " + meshsInView.Length.ToString());
+        vertInfos = new VertInfo[mesh.vertices.Length * 100];
+        vertCount = 0;
+        triangleCount = 0;
+        newNormals = new Vector3[mesh.normals.Length * 100];
+        newTrianlges = new int[mesh.triangles.Length * 100];
+        newVerticies = new Vector3[mesh.vertices.Length * 100];
+        newTangents = new Vector4[mesh.vertices.Length * 100];
+        newUVs = new Vector2[mesh.uv.Length * 100];
+        newUVs2 = new Vector2[mesh.uv2.Length * 100];
+        generateNewSplatedMesh(silhouette, meshsInView);
+
+    }
+
+    void generateNewSplatedMesh(Silhouette silhouette, MeshFilter[] meshsInView)
+    {
+        for (int i = 0; i < meshsInView.Length; i++)
+        {
+            MeshFilter meshFilter = meshsInView[i];
+            if (meshFilter.gameObject.name == gameObject.name) continue;
+            Mesh otherMesh = meshFilter.mesh;
+            VertInfo[] otherVerts = new VertInfo[otherMesh.vertices.Length];
+            for (int j = 0; j < otherMesh.vertices.Length; j++)
+            {
+                otherVerts[j] = new VertInfo()
+                {
+                    pos = meshFilter.gameObject.transform.TransformPoint(otherMesh.vertices[j]),
+                    normal = otherMesh.normals[j],
+                    tangent = otherMesh.tangents[j],
+                };
+            }
+            bool[] vertsBehind = vertsBehindSilhouette(otherVerts, silhouette);
+            generateAndAddedNewVertsOnEdges(otherVerts, otherMesh.triangles, vertsBehind, silhouette);
+        }
+        Debug.Log("number of verts: " + vertCount);    
+        Debug.Log("number of triangles" + triangleCount);
+        cutOffAt(ref newVerticies,vertCount);
+        cutOffAt(ref newUVs, vertCount);
+        cutOffAt(ref newUVs2, vertCount);
+        cutOffAt(ref newNormals, vertCount);
+        cutOffAt(ref newTangents, vertCount);
+        cutOffAt(ref newTrianlges, triangleCount);
+        mesh.triangles = new int[3] { 0,0,0};
+        mesh.SetVertices(newVerticies);
+        mesh.SetUVs(0,newUVs);
+        mesh.SetUVs(1, newUVs2);
+        mesh.SetNormals( newNormals);
+        mesh.SetTangents( newTangents);
+        mesh.triangles = newTrianlges;
+        GetComponent<MeshFilter>().mesh = mesh;
+        GetComponent<MeshCollider>().sharedMesh = mesh;
+        done = true;
+    }
+
+    bool done = false;
+    private void Update()
+    {
+        if (done)
+        {
+            int abc = 123;
+        }
+    }
+    void generateAndAddedNewVertsOnEdges(VertInfo[] otherVerts, int[] otherTriangles, bool[] behind, Silhouette silhouette)
+    {
+        for (int i = 0; i < otherTriangles.Length -  3; i += 3)
+        {
+            List<VertInfo> toAdd = new List<VertInfo>();
+            bool oneIn = false;
+            if (behind[otherTriangles[i]])
+            {
+                oneIn = true;
+                toAdd.Add(otherVerts[otherTriangles[i]]);
+            }
+            if (behind[otherTriangles[i + 1]])
+            {
+                oneIn = true;
+                toAdd.Add(otherVerts[otherTriangles[i + 1]]);
+            }
+            if (behind[otherTriangles[i + 2]])
+            {
+                oneIn = true;
+                toAdd.Add(otherVerts[otherTriangles[i + 2]]);
+            }
+            if (!oneIn)
+            {
+                continue;
+            }
+            int[,] otherEdges = new int[3,2] { { i, i + 1 }, { i, i + 2 }, { i + 1, i + 2 } };
+            for (int j = 0; j < 3; j++)
+            {
+                int v1 = otherTriangles[otherEdges[j, 0]];
+                int v2 = otherTriangles[otherEdges[j, 1]];
+                if (!behind[v1] && !behind[v2])
+                {
+                    continue;
+                }
+                if (behind[v1] && behind[v2])
+                {
+                    continue;
+                }
+
+                if (behind[v1])
+                {
+                    VertInfo silhouetteEdgeVert = silhouette.findVertInfoInSilhouetteAlongEdge(otherVerts[v1], otherVerts[v2], accuracy);
+                    toAdd.Add(silhouetteEdgeVert);
+                }
+                else // behind[otherTriangles[v2]]
+                {
+                    VertInfo silhouetteEdgeVert = silhouette.findVertInfoInSilhouetteAlongEdge(otherVerts[v2], otherVerts[v1], accuracy);
+                    toAdd.Add(silhouetteEdgeVert);
+                }
+            }
+
+            addVerts(ref toAdd, ref silhouette);
+        }
+    }
+
+
+    void addVerts(ref List<VertInfo> toAdd, ref Silhouette silhouette)
+    {
+        for (int i = 0; i < toAdd.Count; i++)
+        {
+            VertInfo vertInfo = toAdd[i];
+            silhouette.setVertInfoUVs(ref vertInfo);
+            newVerticies[vertCount] = transform.InverseTransformPoint(Vector3.Lerp(vertInfo.pos, camPos, .001f));
+            newNormals[vertCount] = vertInfo.normal;
+            newTangents[vertCount] = vertInfo.tangent;
+            newUVs[vertCount] = vertInfo.uv;
+            newUVs2[vertCount] = vertInfo.uv2;
+            vertCount++;
+        }
+        if (toAdd.Count == 3)
+        {
+            newTrianlges[triangleCount] = vertCount - 3;
+            newTrianlges[triangleCount + 1] = vertCount - 2;
+            newTrianlges[triangleCount + 2] = vertCount - 1;
+            triangleCount += 3;
+        }
+        else
+        {
+            newTrianlges[triangleCount] = vertCount - 4;
+            newTrianlges[triangleCount + 1] = vertCount - 1;
+            newTrianlges[triangleCount + 2] = vertCount - 3;
+            triangleCount += 3;
+
+            newTrianlges[triangleCount] = vertCount - 4;
+            newTrianlges[triangleCount + 1] = vertCount - 2;
+            newTrianlges[triangleCount + 2] = vertCount - 1;
+            triangleCount += 3;
+        }
+    }
+
+
+    bool[] vertsBehindSilhouette(VertInfo[] verts, Silhouette silhouette)
+    {
+        bool[] behind = new bool[verts.Length];
+        Array.Fill(behind, false);
         for (int i = 0; i < verts.Length; i++)
         {
-            Vector3 vertWorld = transform.TransformPoint(verts[i]);
-            Vector3 vertLocal = verts[i];
-            Vector3 newPos = transformVertToWall(vertWorld,vertLocal);
-            newVerts[i] = newPos;
-        }
-        int newTrinaglesIndex = 0;
-        int newVertexIndex = verts.Length;
-        for (int i = 0; i + 2 < triangles.Length; i += 3)
-        {
-            int[] tri = new int[4]; 
-            tri[1] = triangles[i + 0];
-            tri[2] = triangles[i + 1];
-            tri[3] = triangles[i + 2];
-            Vector3 vertWorld1 = transform.TransformPoint(newVerts[tri[1]]);
-            Vector3 vertWorld2 = transform.TransformPoint(newVerts[tri[2]]);
-            Vector3 vertWorld3 = transform.TransformPoint(newVerts[tri[3]]);
-            Vector3 vertWorldOld1 = transform.TransformPoint(verts[tri[1]]);
-            Vector3 vertWorldOld2 = transform.TransformPoint(verts[tri[2]]);
-            Vector3 vertWorldOld3 = transform.TransformPoint(verts[tri[3]]);
-
-            int[][] newPointSplatIndex = new int[4][];
-            for (int j = 1; j < 4; j++)
+            Vector3 vert = verts[i].pos;
+            if (silhouette.pointBehind(vert))
             {
-                newPointSplatIndex[j] = new int[4];
-                for (int k = 1; k < 4; k++)
-                {
-                    newPointSplatIndex[j][k] = -1;
-                }
-            }
-
-
-            Vector3 newPoint12 = Vector3.negativeInfinity;
-            Vector3 newPoint21 = Vector3.negativeInfinity;
-            Vector3 newPoint12Local = Vector3.negativeInfinity;
-            Vector3 newPoint21Local = Vector3.negativeInfinity;
-            Vector3 newPoint12Splat = Vector3.negativeInfinity;
-            Vector3 newPoint21Splat = Vector3.negativeInfinity;
-
-            Vector3 newPoint23 = Vector3.negativeInfinity;
-            Vector3 newPoint32 = Vector3.negativeInfinity;
-            Vector3 newPoint23Local = Vector3.negativeInfinity;
-            Vector3 newPoint32Local = Vector3.negativeInfinity;
-            Vector3 newPoint23Splat = Vector3.negativeInfinity;
-            Vector3 newPoint32Splat = Vector3.negativeInfinity;
-
-            Vector3 newPoint13 = Vector3.negativeInfinity;
-            Vector3 newPoint31 = Vector3.negativeInfinity;
-            Vector3 newPoint13Local = Vector3.negativeInfinity;
-            Vector3 newPoint31Local = Vector3.negativeInfinity;
-            Vector3 newPoint13Splat = Vector3.negativeInfinity;
-            Vector3 newPoint31Splat = Vector3.negativeInfinity;
-
-            RaycastHit hit;
-            if (Physics.Raycast(vertWorld1,vertWorld2, out hit,splatOnto))
-            {
-
-                float lerpValue =  binaryFindEdge(vertWorldOld1, vertWorldOld2, vertWorld1, vertWorld2);
-                newPoint12 = Vector3.Lerp(vertWorldOld1,vertWorldOld2,lerpValue + 0.1f);
-                newPoint21 = Vector3.Lerp(vertWorldOld1, vertWorldOld2, lerpValue - 0.1f);
-                newPoint12Local = transform.InverseTransformPoint(newPoint12);
-                newPoint21Local = transform.InverseTransformPoint(newPoint21);
-                Debug.Log(lerpValue);
-                newPoint12Splat =  transformVertToWall(newPoint12,newPoint12Local);
-                newPoint21Splat = transformVertToWall(newPoint21, newPoint21Local);
-                newVerts[newVertexIndex] = newPoint12Splat;
-                newPointSplatIndex[1][2] = newVertexIndex;
-                newVertexIndex++;
-                newVerts[newVertexIndex] = newPoint21Splat;
-                newPointSplatIndex[2][1] = newVertexIndex;
-                newVertexIndex++;
-
-            }
-            if (Physics.Linecast(vertWorld2, vertWorld3, out hit, splatOnto))
-            {
-
-                float lerpValue = binaryFindEdge(vertWorldOld2, vertWorldOld3, vertWorld2, vertWorld3);
-                newPoint23 = Vector3.Lerp(vertWorldOld2, vertWorldOld3, lerpValue + 0.1f);
-                newPoint32 = Vector3.Lerp(vertWorldOld2, vertWorldOld3, lerpValue - 0.1f);
-                newPoint23Local = transform.InverseTransformPoint(newPoint23);
-                newPoint32Local = transform.InverseTransformPoint(newPoint32);
-                newPoint23Splat = transformVertToWall(newPoint23, newPoint23Local);
-                newPoint32Splat = transformVertToWall(newPoint32, newPoint32Local);
-                newVerts[newVertexIndex] = newPoint23Splat;
-                newPointSplatIndex[2][3] = newVertexIndex;
-                newVertexIndex++;
-                newVerts[newVertexIndex] = newPoint32Splat;
-                newPointSplatIndex[3][2] = newVertexIndex;
-                newVertexIndex++;
-            }
-            if (Physics.Linecast(vertWorld1, vertWorld3, out hit, splatOnto))
-            {
-
-                float lerpValue = binaryFindEdge(vertWorldOld1, vertWorldOld3, vertWorld1, vertWorld3);
-                newPoint13 = Vector3.Lerp(vertWorldOld1, vertWorldOld3, lerpValue + 0.1f);
-                newPoint31 = Vector3.Lerp(vertWorldOld1, vertWorldOld3, lerpValue - 0.1f);
-                newPoint13Local = transform.InverseTransformPoint(newPoint13);
-                newPoint31Local = transform.InverseTransformPoint(newPoint31);
-                newPoint13Splat = transformVertToWall(newPoint13, newPoint13Local);
-                newPoint31Splat = transformVertToWall(newPoint31, newPoint31Local);
-                newVerts[newVertexIndex] = newPoint13Splat;
-                newPointSplatIndex[1][3] = newVertexIndex; 
-                newVertexIndex++;
-                newVerts[newVertexIndex] = newPoint31Splat;
-                newPointSplatIndex[3][1] = newVertexIndex;
-                newVertexIndex++;
-            }
-
-            // connect new splat point if they exist
-            bool hasNewVerts = false;
-
-            for (int from = 1; from < 4; from++)
-            {
-                for (int to = 1; to < 4; to++)
-                {
-                    if(from == to)
-                    {
-                        continue;
-                    }
-                    int vertIndex = newPointSplatIndex[from][to];
-                    if (vertIndex == -1)
-                    {
-                        continue;
-                    }
-                    hasNewVerts = true;
-                    int homeVertIndex = tri[from];
-                    int awayIndex = getAwayIndex(to,from);
-                    int otherWayVertIndex = newPointSplatIndex[awayIndex][to] != -1 ? newPointSplatIndex[awayIndex][to] : tri[awayIndex];
-                    newTriangles[newTrinaglesIndex] = vertIndex;
-                    newTriangles[newTrinaglesIndex + 1] = homeVertIndex;
-                    newTriangles[newTrinaglesIndex + 2] = otherWayVertIndex;
-                    newTrinaglesIndex += 3;
-                }
-            }
-
-            if (!hasNewVerts)
-            {
-                newTriangles[newTrinaglesIndex] = tri[1];
-                newTriangles[newTrinaglesIndex + 1] = tri[2]; 
-                newTriangles[newTrinaglesIndex + 2] = tri[3]; 
-                newTrinaglesIndex += 3;
+                behind[i] = true;
             }
         }
-        verts = newVerts;
-        triangles = newTriangles;
-        mesh.vertices = verts;
-        mesh.triangles = triangles;
+        return behind;
     }
 
-
-    int getAwayIndex(int to, int home)
+    MeshFilter[] getmeshsInView()
     {
-        if (to + home == 5) {
-            return 1;
-        }
-        else if (to + home == 3)
+        MeshFilter[] meshInView = new MeshFilter[allMeshes.Length];
+        int numMeshInView = 0;
+        for (int i = 0; i < allMeshes.Length; i++)
         {
-            return 3;
-        }
-        else if (to + home == 4)
-        {
-            return 2;
-        }
-        return -1;
-    }
-
-    float binaryFindEdge(Vector3 vert1, Vector3 vert2, Vector3 vert1Splat, Vector3 vert2Splat)
-    {
-        float lastLerpValue = 0f;
-        float lerpValue = 0.5f;
-        for (int i = 2; i < 22 && lerpValue != lastLerpValue; i++)
-        {
-            lastLerpValue = lerpValue;
-            RaycastHit hit;
-            RaycastHit hit2;
-            if (Physics.Raycast(cam.transform.position, Vector3.Lerp(vert1, vert2, lerpValue) - cam.transform.position, out hit, 99, splatOnto))
+            MeshFilter m = allMeshes[i];
+            if (m.gameObject.name == gameObject.name && CheckIfObjectWithinView(m, cam))
             {
-                if(Physics.Linecast(vert2Splat,  hit.point, out hit2, splatOnto))
-                {
-                    lerpValue += Mathf.Pow(.5f,i);
-                }
-                else if(Physics.Linecast(vert1Splat, hit.point, out hit2, splatOnto))
-                {
-                    lerpValue -= Mathf.Pow(.5f, i);
-                }
+                meshInView[numMeshInView] = m;
+                numMeshInView++;
             }
         }
-        return lerpValue;
-    }
-
-
-
-    public Vector3 transformVertToWall(Vector3 worldPos, Vector3 localPos)
-    {
-        RaycastHit hit;
-        if (Physics.Raycast(cam.transform.position, worldPos - cam.transform.position, out hit, 99, splatOnto))
+        MeshFilter[] shortObjInView = new MeshFilter[numMeshInView];
+        for (int i = 0; i < numMeshInView; i++)
         {
-            Vector3 newPos = transform.InverseTransformPoint(hit.point);
-            newPos = Vector3.Lerp(localPos, newPos, .999f);
-            return newPos;
+            shortObjInView[i] = meshInView[i];
         }
-        return Vector3.negativeInfinity;
+        return shortObjInView;
     }
 
+
+    public bool CheckIfObjectWithinView(MeshFilter m, Camera cam)
+    {
+        if (m == null) return false;
+
+        var bounds = m.mesh.bounds;
+
+        var planes = GeometryUtility.CalculateFrustumPlanes(cam);
+        var points = GetEightBoundsVertices(bounds);
+
+        if (points.Count(p => TestPoint(planes, p)) == points.Count)
+        {
+            //the whole object is within cam view
+            return true;
+        }
+        return false;
+    }
+
+
+    //check if all vertices points are in the positive direction of all cam frustum planes
+    //if it is true, the gameobject is within camview
+    bool TestPoint(Plane[] planes, Vector3 point) => !planes.Any(plane => plane.GetDistanceToPoint(point) < 0);
+
+    List<Vector3> GetEightBoundsVertices(Bounds bounds) => new List<Vector3>() {
+     bounds.min,
+       bounds.max,
+       new Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
+       new Vector3(bounds.min.x, bounds.max.y, bounds.min.z),
+       new Vector3(bounds.max.x, bounds.min.y, bounds.min.z),
+       new Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
+       new Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
+       new Vector3(bounds.max.x, bounds.max.y, bounds.min.z)
+   };
+
+    void cutOffAt<T>(ref T[] list, int size)
+    {
+        T[] l =  new T[size];
+        for (int i = 0; i < size; i++)
+        {
+            l[i] = list[i];
+        }
+        list = l;
+    }
 
 }
